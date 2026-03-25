@@ -1,26 +1,22 @@
-// src/app/api/cart/route.ts
-import { getToken } from 'next-auth/jwt';
-import { NextRequest, NextResponse } from 'next/server';
+import { error } from "console";
+import { getToken } from "next-auth/jwt";
+import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  // Get the token from the secure cookie
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
+export async function GET(req:NextRequest){
+    const token=await getToken({req})
 
-  // Check if user is authenticated
-  if (!token?.token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+    if(!token){
+        return NextResponse.json({error:'unathorized',satus:401})
 
-  // Make authenticated request to your backend
-  const res = await fetch('https://ecommerce.routemisr.com/api/v1/cart', {
-    headers: {
-      token: token.token as string,
-    },
-  });
+    }
+    const rep=await fetch(`${process.env.API}/cart`,{
+        headers:{
+            token:(token as any)?.token as string || "",
+            'content-type':'application/json  '
+        }
+    })
 
-  const data = await res.json();
-  return NextResponse.json(data);
+    const payload=await rep.json()
+
+    return NextResponse.json(payload)
 }

@@ -6,7 +6,7 @@ import Image from 'next/image'
 import { signOut, useSession } from 'next-auth/react'
 import { DropdownMenuBasic } from '../dropDown/DropDown'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CartResponse } from '@/types/cart-response'
+import { CartResponse } from '@/types/cart-interface'
 import { ShoppingBag } from 'lucide-react'
 
 export default function Navbar() {

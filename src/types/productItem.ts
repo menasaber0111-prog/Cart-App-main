@@ -1,4 +1,17 @@
-export interface ProductItem {
+export interface Root {
+  results: number
+  metadata: Metadata
+  data: Product[]
+}
+
+export interface Metadata {
+  currentPage: number
+  numberOfPages: number
+  limit: number
+  nextPage: number
+}
+
+export interface Product {
   sold?: number
   images: string[]
   subcategory: Subcategory[]

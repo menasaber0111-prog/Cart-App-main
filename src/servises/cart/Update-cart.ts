@@ -1,6 +1,6 @@
 'use server'
 
-export async function deleteCartItem(productId: string, userToken: string) {
+export async function UpdateCart(productId: string, userToken: string , count:number) {
     try {
         if (!userToken) {
             return {
@@ -10,11 +10,14 @@ export async function deleteCartItem(productId: string, userToken: string) {
         }
 
         const response = await fetch(`${process.env.API}/cart/${productId}`, {
-            method: 'DELETE',
+            method: 'PUT',
             headers: {
                 'token': userToken,
                 'Content-Type': 'application/json',
             },
+            body:JSON.stringify({
+                count:count
+            }),
         });
 
         if (!response.ok) {

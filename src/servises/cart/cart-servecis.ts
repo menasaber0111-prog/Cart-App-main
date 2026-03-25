@@ -1,6 +1,6 @@
 'use server'
 
-export async function deleteCartItem(productId: string, userToken: string) {
+export async function cartServices(productId: string, userToken: string) {
     try {
         if (!userToken) {
             return {
@@ -9,12 +9,16 @@ export async function deleteCartItem(productId: string, userToken: string) {
             };
         }
 
-        const response = await fetch(`${process.env.API}/cart/${productId}`, {
-            method: 'DELETE',
+        const response = await fetch("https://ecommerce.routemisr.com/api/v1/cart", {
+            cache: 'no-store',
+            method: 'POST',
             headers: {
                 'token': userToken,
                 'Content-Type': 'application/json',
             },
+            body: JSON.stringify({
+                productId
+            }),
         });
 
         if (!response.ok) {

@@ -1,225 +1,294 @@
 'use client'
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import React, { useEffect } from 'react'
-import { CartResponse } from '@/types/cart-response'
-import { deleteCartItem } from '@/servises/cart/delete-cart-item'
-import {clearCart } from '@/servises/cart/clear-cart'
-import {updateCartItem } from  '@/servises/cart/update-cart-item'
-import toast from 'react-hot-toast'
-import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react' // أضف icons
-import cartImg from '../../assets/image/cart.png'
-import Image from 'next/image'
 import Link from 'next/link'
+import { MdDelete } from 'react-icons/md'
+import { cartResponse } from '../../types/cart-interface'
+import { deleteCartItem } from '../../servises/cart/delete-cart-item'
 import { useSession } from 'next-auth/react'
+import { UpdateCart } from '../../servises/cart/Update-cart'
+import { applyCoupon } from '../../servises/cart/apply-coupon'
+import { useState } from 'react'
+import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 
 export default function Cart() {
-  const { status } = useSession()
-  const router = useRouter()
-  const queryClient = useQueryClient()
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [couponCode, setCouponCode] = useState('');
+  
+  const { data: session } = useSession();
+  const userToken = (session as any)?.token;
 
-  useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login')
-    }
-  }, [status, router])
-
-  const { data: cartData, isLoading, isError, error } = useQuery<CartResponse>({
+  const { data: cartDta, isLoading, isError } = useQuery<cartResponse>({
     queryKey: ['get-cart'],
     queryFn: async () => {
-      const res = await fetch('/api/cart')
-      if (!res.ok) throw new Error('Failed to fetch cart')
-      return await res.json()
+    const resp = await fetch('https://ecommerce.routemisr.com/api/v1/cart', {
+      headers: {
+        token: userToken,
+      },
+    });
+      if (!resp.ok) throw new Error('Failed to fetch')
+      return await resp.json()
     },
-    retry: 1, // قلل retries
-    staleTime: 5 * 60 * 1000, // 5 min cache
+    enabled: !!userToken // لا يتم الجلب إلا إذا وجد التوكن
   })
 
-  // Mutations مع loading states
   const deleteMutation = useMutation({
-    mutationFn: (productId: string) => deleteCartItem(productId),
-    onSuccess: () => {
-      toast.success('Product deleted')
-      queryClient.invalidateQueries({ queryKey: ['get-cart'] })
+    mutationFn: async (productId: string) => {
+      return await deleteCartItem(productId, userToken);
     },
-    onError: (err) => toast.error(err.message || 'Error deleting product'),
-  })
-
-  const clearMutation = useMutation({
-    mutationFn: clearCart,
-    onSuccess: () => {
-      toast.success('Cart cleared')
-      queryClient.invalidateQueries({ queryKey: ['get-cart'] })
+    onSuccess: (result) => {
+      if (result.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['get-cart'] });
+        toast.success('Item removed from cart');
+      }
     },
-    onError: (err) => toast.error(err.message || 'Error clearing cart'),
-  })
+    onError: () => toast.error('Failed to remove item')
+  });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ productId, count }: { productId: string; count: number }) =>
-      updateCartItem({ productId, count }),
-    onSuccess: () => {
-      toast.success('Product updated')
-      queryClient.invalidateQueries({ queryKey: ['get-cart'] })
+  const updateCartMutation = useMutation({
+    mutationFn: async ({ productId, count }: { productId: string; count: number }) => {
+      return await UpdateCart(productId, userToken, count);
     },
-    onError: (err) => toast.error(err.message || 'Error updating product'),
-  })
+    onSuccess: (result) => {
+      if (result.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['get-cart'] });
+      }
+    },
+    onError: () => toast.error('Failed to update quantity')
+  });
 
-  const handleUpdate = (productId: string, count: number) => {
-    if (count < 1) {
-      toast.error('Minimum quantity is 1')
-      return
+  const couponMutation = useMutation({
+    mutationFn: async (couponName: string) => {
+      return await applyCoupon(couponName, userToken);
+    },
+    onSuccess: (result) => {
+      if (result.status === 'success') {
+        toast.success('Coupon applied successfully! ✅');
+        queryClient.invalidateQueries({ queryKey: ['get-cart'] });
+        setCouponCode('');
+      } else {
+        toast.error(result.message || 'Invalid coupon code');
+      }
+    },
+    onError: (error: any) => toast.error(error?.message || 'Failed to apply coupon')
+  });
+
+  function handleUpdate(productId: string, count: number) {
+    if (count < 1) return;
+    updateCartMutation.mutate({ productId, count });
+  }
+
+  function handleApplyCoupon(e: React.FormEvent) {
+    e.preventDefault();
+    if (!couponCode.trim()) {
+      toast.error('Please enter a coupon code');
+      return;
     }
-    updateMutation.mutate({ productId, count })
+    couponMutation.mutate(couponCode);
   }
 
-  if (status === 'loading' || isLoading) {
+  const isCartEmpty = !cartDta || !cartDta.data || !cartDta.data.products || cartDta.data.products.length === 0;
+  const finalPrice = cartDta?.data.totalPriceAfterDiscount || cartDta?.data.totalCartPrice || 0;
+  const hasDiscount = !!(cartDta?.data.totalPriceAfterDiscount && cartDta.data.totalPriceAfterDiscount !== cartDta.data.totalCartPrice);
+  const discountAmount = hasDiscount ? (cartDta?.data.totalCartPrice || 0) - (cartDta?.data.totalPriceAfterDiscount || 0) : 0;
+
+  const handleCheckout = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('cartId', cartDta?.data._id || '');
+      sessionStorage.setItem('cartTotal', finalPrice.toString());
+    }
+    router.push('/checkout/step1-address');
+  };
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex justify-center items-center">
-        <Loader2 className="w-8 h-8 animate-spin" />
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading your cart...</p>
+        </div>
       </div>
     )
   }
 
-  if (status === 'unauthenticated' || isError) {
+  if (isError || isCartEmpty) {
     return (
-      <div className="min-h-screen flex flex-col justify-center items-center gap-4">
-        <p className="text-red-500">{error?.message || 'Error loading cart or unauthorized'}</p>
-        <Button asChild>
-          <Link href="/login">Go to Login</Link>
-        </Button>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center p-4">
+        <div className="text-center py-10 w-full max-w-md">
+          <div className="text-7xl mb-6">🛒</div>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Your Cart is Empty</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-8">Looks like you haven't added anything to your cart yet.</p>
+          <Link 
+            href="/" 
+            className="block w-full sm:inline-block px-8 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-bold shadow-lg"
+          >
+            Start Shopping
+          </Link>
+        </div>
       </div>
-    )
+    );
   }
-
-  const totalItems = cartData?.numOfCartItems ?? 0
-  const totalPrice = cartData?.data?.totalCartPrice ?? 0
 
   return (
-    <div className="container mx-auto py-8 px-4">
-      {totalItems > 0 ? (
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Cart Items Table */}
-          <div className="lg:w-3/4">
-            <div className="overflow-x-auto shadow-lg rounded-xl border">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                  <tr>
-                    <th className="px-6 py-4 text-left font-semibold">Image</th>
-                    <th className="px-6 py-4 text-left font-semibold">Product</th>
-                    <th className="px-6 py-4 text-left font-semibold">Qty</th>
-                    <th className="px-6 py-4 text-left font-semibold">Price</th>
-                    <th className="px-6 py-4 text-left font-semibold">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cartData.data?.products.map((prod) => (
-                    <tr key={prod._id} className="border-b hover:bg-gray-50 transition-colors">
-                      <td className="p-4">
-                        <img
-                          src={prod.product.imageCover}
-                          alt={prod.product.title}
-                          className="w-20 h-20 object-cover rounded-lg"
-                        />
-                      </td>
-                      <td className="px-6 py-4 font-medium max-w-md truncate">
-                        {prod.product.title}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleUpdate(prod.product._id, prod.count - 1)}
-                            disabled={updateMutation.isPending || deleteMutation.isPending}
-                          >
-                            -
-                          </Button>
-                          <span className="w-12 text-center font-semibold">{prod.count}</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleUpdate(prod.product._id, prod.count + 1)}
-                            disabled={updateMutation.isPending || deleteMutation.isPending}
-                          >
-                            +
-                          </Button>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 font-bold text-green-600">
-                        {prod.price} EGP
-                      </td>
-                      <td className="px-6 py-4">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deleteMutation.mutate(prod.product._id)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          {deleteMutation.variables === prod.product._id ? (
-                            <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                          ) : (
-                            'Delete'
-                          )}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors duration-300">
+      <div className="container mx-auto px-4 py-6 md:py-10 max-w-7xl">
+        
+        {/* Breadcrumb - Hidden on very small screens to save space */}
+        <div className="hidden sm:flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 mb-8">
+          <Link href="/" className="hover:text-green-600 transition-colors">Home</Link>
+          <span>/</span>
+          <span className="text-gray-900 dark:text-gray-100 font-medium">Shopping Cart</span>
+        </div>
+
+        <div className="grid lg:grid-cols-3 gap-8">
+          
+          {/* Left Column: Products List */}
+          <div className="lg:col-span-2 space-y-6">
+            <header className="mb-6">
+              <h1 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white">Shopping Cart</h1>
+              <p className="text-gray-500 dark:text-gray-400 mt-1">{cartDta.numOfCartItems} items reserved for you</p>
+            </header>
+
+            <div className="space-y-4">
+              {cartDta.data.products.map((pro) => (
+                <div 
+                  key={pro._id} 
+                  className={`relative flex flex-col sm:flex-row items-center gap-4 p-4 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all ${
+                    deleteMutation.isPending || updateCartMutation.isPending ? 'opacity-50 pointer-events-none' : ''
+                  }`}
+                >
+                  {/* Image Container */}
+                  <div className="w-full sm:w-32 h-40 sm:h-32 shrink-0 bg-gray-50 dark:bg-gray-800 rounded-xl overflow-hidden">
+                    <img 
+                      src={pro.product.imageCover} 
+                      alt={pro.product.title} 
+                      className="w-full h-full object-contain p-2" 
+                    />
+                  </div>
+                  
+                  {/* Info Container */}
+                  <div className="flex-1 w-full text-center sm:text-left">
+                    <h3 className="font-bold text-gray-900 dark:text-white text-lg line-clamp-1">{pro.product.title}</h3>
+                    <p className="text-sm text-green-600 dark:text-green-500 font-medium mb-3">
+                      {pro.product.category?.name || 'General'}
+                    </p>
+                    
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4">
+                      {/* Quantity Controls */}
+                      <div className="flex items-center border-2 border-gray-100 dark:border-gray-800 rounded-xl overflow-hidden bg-gray-50 dark:bg-gray-800">
+                        <button 
+                          onClick={() => handleUpdate(pro.product._id, pro.count - 1)}
+                          className="px-3 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 text-xl font-bold transition-colors"
+                        >−</button>
+                        <span className="px-4 py-1 font-bold text-gray-900 dark:text-white">{pro.count}</span>
+                        <button 
+                          onClick={() => handleUpdate(pro.product._id, pro.count + 1)}
+                          className="px-3 py-1 hover:bg-gray-200 dark:hover:bg-gray-700 text-xl font-bold transition-colors"
+                        >+</button>
+                      </div>
+
+                      <div className="text-lg font-black text-gray-900 dark:text-white">
+                        {pro.price} <span className="text-sm font-normal text-gray-500">EGP</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Delete Button - Positioned top-right on mobile */}
+                  <button 
+                    onClick={() => deleteMutation.mutate(pro.product._id)}
+                    className="absolute top-4 right-4 sm:static p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                  >
+                    <MdDelete size={28} />
+                  </button>
+                </div>
+              ))}
             </div>
-            <Button 
-              onClick={() => clearMutation.mutate()} 
-              variant="outline" 
-              className="mt-6 w-full"
-              disabled={clearMutation.isPending}
-            >
-              {clearMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Clearing...
-                </>
-              ) : (
-                'Clear Cart'
-              )}
-            </Button>
           </div>
 
-          {/* Summary */}
-          <div className="lg:w-1/4 space-y-4">
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-6 rounded-2xl border shadow-sm">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                Order Summary
-              </h2>
-              <div className="space-y-3 text-lg">
-                <div>
-                  Items: <span className="font-bold text-green-600">{totalItems}</span>
+          {/* Right Column: Order Summary */}
+          <div className="lg:col-span-1">
+            <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-6 shadow-sm sticky top-24">
+              <h2 className="text-xl font-black text-gray-900 dark:text-white mb-6">Order Summary</h2>
+              
+              {/* Coupon Form */}
+              <form onSubmit={handleApplyCoupon} className="mb-6">
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Have a promo code?</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    placeholder="CODE20"
+                    className="flex-1 px-4 py-3 rounded-xl border-2 border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 focus:border-green-500 outline-none transition-all uppercase font-bold"
+                  />
+                  <button
+                    type="submit"
+                    disabled={couponMutation.isPending || !couponCode.trim()}
+                    className="px-6 bg-gray-900 dark:bg-green-700 text-white rounded-xl font-bold hover:bg-black transition-colors disabled:opacity-50"
+                  >
+                    Apply
+                  </button>
                 </div>
-                <div className="text-2xl font-bold text-gray-900 border-t pt-3">
-                  Total: <span className="text-green-600">{totalPrice.toLocaleString()} EGP</span>
+              </form>
+
+              {/* Price Details */}
+              <div className="space-y-4 mb-8">
+                <div className="flex justify-between text-gray-500">
+                  <span>Subtotal</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{cartDta.data.totalCartPrice} EGP</span>
+                </div>
+                
+                {hasDiscount && (
+                  <div className="flex justify-between text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded-lg">
+                    <span>Discount Applied</span>
+                    <span className="font-bold">-{discountAmount.toFixed(2)} EGP</span>
+                  </div>
+                )}
+                
+                <div className="flex justify-between text-gray-500">
+                  <span>Estimated Shipping</span>
+                  <span className="text-green-600 font-bold italic">FREE</span>
+                </div>
+
+                <div className="pt-4 border-t-2 border-dashed border-gray-100 dark:border-gray-800 flex justify-between items-end">
+                  <span className="text-lg font-bold">Total Amount</span>
+                  <div className="text-right">
+                    {hasDiscount && (
+                      <div className="text-sm text-gray-400 line-through mb-1">{cartDta.data.totalCartPrice} EGP</div>
+                    )}
+                    <div className="text-3xl font-black text-green-600">{finalPrice} EGP</div>
+                  </div>
                 </div>
               </div>
-              <Button asChild className="mt-6 w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700">
-                <Link href={`/checkout/${cartData.cartId}`}>
-                  Proceed to Checkout →
+
+              {/* Action Buttons */}
+              <div className="space-y-4">
+                <button 
+                  onClick={handleCheckout}
+                  className="w-full bg-green-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-green-500/20 hover:bg-green-700 hover:-translate-y-1 transition-all"
+                >
+                  Proceed to Checkout
+                </button>
+                
+                <Link 
+                  href="/" 
+                  className="block w-full text-center text-gray-500 font-bold hover:text-gray-900 transition-colors"
+                >
+                  Continue Shopping
                 </Link>
-              </Button>
+              </div>
+
+              {/* Trust Badge */}
+              <div className="mt-8 flex items-center justify-center gap-3 text-xs text-gray-400 font-medium">
+                <span className="flex items-center gap-1">🛡️ 100% Secure</span>
+                <span className="flex items-center gap-1">💳 Flexible Payment</span>
+              </div>
             </div>
           </div>
+
         </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-20 space-y-6">
-          <Image src={cartImg} width={300} height={300} alt="Empty cart" className="opacity-75" />
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-gray-700">Your cart is empty</h2>
-            <p className="text-gray-500">Add some products to get started</p>
-            <Button asChild>
-              <Link href="/products">Shop Now</Link>
-            </Button>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   )
 }

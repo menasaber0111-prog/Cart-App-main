@@ -1,88 +1,109 @@
-'use client';
-
-import { useState } from 'react';
-import { ProductItem } from "@/types/productinterface"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import Image from 'next/image'
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import Link from "next/link"
-import AddBtn from "../addBtn/addBtn"
-import { FavoriteHeart } from '../heartBtn/FavoriteHeart';
+} from "@/components/ui/card";
+import { Product } from "../../../types/productItem";
+import Link from "next/link";
+import Image from "next/image";
+import AddToCartButton from "@/app/button/button";
+import { Star } from "lucide-react";
 
-
-export function ProductCard({prod}:{prod:ProductItem}) {
-  const [isInWishlist, setIsInWishlist] = useState(false);
-  const [wishlistLoading, setWishlistLoading] = useState(false);
-
-  const handleWishlist = async (e: React.MouseEvent) => {
-    e.preventDefault(); // منع الـ Link navigation
-    e.stopPropagation();
-    
-    setWishlistLoading(true);
-    
-    try {
-      const method = isInWishlist ? 'DELETE' : 'POST';
-      
-      const response = await fetch('https://ecommerce.routemisr.com/api/v1/wishlist', {
-        method,
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          product_id: prod._id 
-        }),
-      });
-
-      if (response.ok) {
-        setIsInWishlist(!isInWishlist);
-      }
-    } catch (error) {
-      console.error('خطأ في الـ wishlist:', error);
-    } finally {
-      setWishlistLoading(false);
-    }
-  };
+export function ProductCard({ prod }: { prod: Product }) {
+  const fullStars = Math.floor(prod.ratingsAverage);
+  const hasHalfStar = prod.ratingsAverage % 1 >= 0.5;
+  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
 
   return (
-    <Card className="relative mx-auto w-full max-w-sm pt-0 group">
+    <Card className="group relative mx-auto w-full max-w-sm overflow-hidden transition-all duration-300 hover:shadow-xl dark:hover:shadow-2xl dark:hover:shadow-primary/20">
+
       <Link href={`/productdetails/${prod._id}`} className="block">
-        <Image 
-          className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300"
-          src={prod.imageCover}
-          alt={prod.title}
-          width={200}
-          height={300}
-        />
-        <CardHeader>
-          <CardTitle>{prod.title.split(' ').slice(0,2).join(' ')}</CardTitle>
-          <CardDescription className="my-3">
-            <div className="flex justify-between">
-              <span>{prod.price} EGP</span>
-              <span className="flex items-center gap-1">
-                {prod.ratingsAverage} 
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="size-6 text-yellow-300">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
-                </svg>
+        {/* Image Container */}
+        <div className="relative aspect-square overflow-hidden bg-gray-100 dark:bg-gray-800">
+          <Image
+            width={500}
+            height={500}
+            src={prod.imageCover}
+            alt={prod.title}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+          />
+          
+          {/* Gradient Overlay on Hover */}
+          <div className="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+        </div>
+
+        <CardHeader className="space-y-3 p-4">
+          {/* Brand Badge */}
+          
+            <Badge 
+              variant="secondary" 
+              className="bg-primary/10 text-primary hover:bg-primary/20 dark:bg-primary/20 dark:text-primary-foreground"
+            >
+              {prod.brand.name}
+            </Badge>
+          
+
+          {/* Product Title */}
+          <CardTitle className="line-clamp-2 text-lg font-semibold transition-colors group-hover:text-primary dark:text-gray-100">
+            {prod.title.split(" ").slice(0, 2).join(" ")}
+          </CardTitle>
+
+          <CardDescription className="space-y-2">
+            {/* Price */}
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                {prod.price}
+              </span>
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                EGP
+              </span>
+            </div>
+
+            {/* Rating */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0.5">
+                {/* Full Stars */}
+                {Array.from({ length: fullStars }).map((_, i) => (
+                  <Star
+                    key={`full-${i}`}
+                    className="h-4 w-4 fill-amber-400 text-amber-400 dark:fill-amber-500 dark:text-amber-500"
+                  />
+                ))}
+                
+                {/* Half Star */}
+                {hasHalfStar && (
+                  <div className="relative">
+                    <Star className="h-4 w-4 text-gray-300 dark:text-gray-600" />
+                    <div className="absolute inset-0 overflow-hidden" style={{ width: '50%' }}>
+                      <Star className="h-4 w-4 fill-amber-400 text-amber-400 dark:fill-amber-500 dark:text-amber-500" />
+                    </div>
+                  </div>
+                )}
+                
+                {/* Empty Stars */}
+                {Array.from({ length: emptyStars }).map((_, i) => (
+                  <Star
+                    key={`empty-${i}`}
+                    className="h-4 w-4 text-gray-300 dark:text-gray-600"
+                  />
+                ))}
+              </div>
+              
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {prod.ratingsAverage.toFixed(1)}
               </span>
             </div>
           </CardDescription>
         </CardHeader>
       </Link>
-      
-      <CardFooter className="p-4 pt-0 border-t">
-        <div className="flex justify-between items-center w-full">
-          <AddBtn productId={prod._id}/>  
-          <FavoriteHeart productId={prod._id}  />
-        </div>
+
+      {/* Add to Cart Button */}
+      <CardFooter className="p-4 pt-0">
+        <AddToCartButton product={prod._id} />
       </CardFooter>
     </Card>
-  )
+  );
 }

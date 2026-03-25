@@ -1,20 +1,29 @@
-import { ProductItem } from "../types/productinterface";
-import { ProductCard } from "./_components/ProductCard/ProductCard";
+import CategoriesSlider from "../app/_components/CategorySlider/CategorySlider";
 import MainSlider from "./_components/MainSlider/MainSlider";
-import CategorySlider from "./_components/CategorySlider/CategorySlider";
+import { ProductCard } from "../app/_components/ProductCard/ProductCard";
+import { Product } from "../types/productItem";
 
 
 export default async function Home() {
-  let response = await fetch('https://ecommerce.routemisr.com/api/v1/products ')
-  let {data:allProducts} : {data : ProductItem[]} = await response.json()
+  let response = await fetch(
+    `https://ecommerce.routemisr.com/api/v1/products`,
+    {
+      method: "GET",
+      cache: "no-cache",
+      next: { revalidate: 60 },
+    },
+  );
+  let { data: allproducts }: { data: Product[] } = await response.json();
+  console.log(allproducts);
   return (
     <>
     <MainSlider/>
-    <CategorySlider/>
-    <div className="grid mt-5 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5">
-        {allProducts?.map((product)=>  <ProductCard key={product._id}  prod={product}/>  )}
-    </div>
-    
+    <CategoriesSlider/>
+      <div className="grid grid-cols-1 mt-5 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
+        {allproducts?.map((prod) => (
+          <ProductCard key={prod._id} prod={prod} />
+        ))}
+      </div>
     </>
   );
 }

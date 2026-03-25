@@ -1,14 +1,17 @@
-export interface sucssesLogin{
-    message : string
-    token : string
-    user : UserResponse
+export interface FailAuth {
+  statusMsg: string
+  message: string
 }
-export interface failedLogin{
-    message : string
-    statusMsg : string
+
+export interface SuccessLogin  {
+    message: string
+    token: string
+    user: Userinfo
 }
-export interface UserResponse{
-    name : string
-    email : string 
-    role :string
+
+export interface Userinfo   {
+    name: string
+    email: string
+    role: string
+    cart?:number
 }
