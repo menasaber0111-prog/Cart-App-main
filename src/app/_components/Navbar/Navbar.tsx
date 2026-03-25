@@ -6,13 +6,13 @@ import Image from 'next/image'
 import { signOut, useSession } from 'next-auth/react'
 import { DropdownMenuBasic } from '../dropDown/DropDown'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CartResponse } from '@/types/cart-interface'
 import { ShoppingBag } from 'lucide-react'
+import { cartResponse } from '@/types/cart-interface'
 
 export default function Navbar() {
   const queryClient = useQueryClient();
   
-  const {isLoading: cartLoading, isError: cartError, data: cartData, refetch: refetchCartData} = useQuery<CartResponse>({
+  const {isLoading: cartLoading, isError: cartError, data: cartData, refetch: refetchCartData} = useQuery<cartResponse>({
     queryKey: ['cart-navbar'],
     queryFn: async () => {
       const resp = await fetch('/api/cart', { credentials: 'include' })
