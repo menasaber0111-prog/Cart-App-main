@@ -5,8 +5,9 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 // Import Swiper styles
 import 'swiper/css';
 import Image from 'next/image'
-import { Category } from '@/types/productinterface';
+
 import {Autoplay } from 'swiper/modules'
+import { Category } from '@/types/cart-interface';
 
 export default function Slider({categories}:{categories:Category[]}) {
   return (
