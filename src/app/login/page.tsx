@@ -151,7 +151,7 @@ export default function Login() {
               <svg className="size-6 animate-spin" viewBox="0 0 24 24">
                 <path d="M12 4V1m0 22v-3m8-8h3M1 12h3m15.364 6.364l2.121 2.121M4.515 4.515l2.121 2.121m12.728 0l2.121-2.121M4.515 19.485l2.121-2.121"/>
               </svg>
-            ) : 'Submit'}
+            ) : 'Login'}
           </Button>
 
         </form>

@@ -9,12 +9,10 @@ export async function middleware(request: NextRequest) {
 
   const isAuthPage = pathname === '/login' || pathname === '/register'
 
-  // لو المستخدم عامل login وفتح login/register
   if (token && isAuthPage) {
-    return NextResponse.redirect(new URL('/products', request.url))
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // لو مش عامل login وحاول يدخل صفحة محمية
   if (!token && !isAuthPage) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
@@ -23,5 +21,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/products', '/brands', '/categories', '/login', '/register'],
+  matcher: ['/', '/brands', '/categories', '/login', '/register'],
 }
